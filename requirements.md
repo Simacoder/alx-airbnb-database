@@ -1,5 +1,7 @@
 # **Database Specification - AirBnB**
 
+![DATABASE_SCHEMA](/Database%20Specification%20-%20AirBnB.drawio.png)
+
 ## Entities and Attributes
 
 ### User
