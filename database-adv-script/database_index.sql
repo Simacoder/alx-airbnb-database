@@ -197,7 +197,11 @@ CREATE INDEX idx_review_property_created ON Review(property_id, created_at);
 -- CREATE INDEX idx_booking_active ON Booking((CASE WHEN status IN ('confirmed', 'pending') THEN 1 ELSE NULL END));
 
 -- =====================================================
--- 6. PERFORMANCE TESTING QUERIES
+-- 6. PERFORMANCE TESTING WITH EXPLAIN AND EXPLAIN ANALYZE
+-- =====================================================
+
+-- =====================================================
+-- 6.1 BASIC EXPLAIN QUERIES (Query Plan Analysis)
 -- =====================================================
 
 -- Query 1: User lookup by email (tests idx_user_email)
@@ -247,6 +251,103 @@ AND b.start_date >= '2024-01-01'
 ORDER BY b.created_at DESC;
 
 -- =====================================================
+-- 6.2 EXPLAIN ANALYZE QUERIES (Actual Execution Analysis)
+-- =====================================================
+
+-- Query 1: User lookup by email with actual execution stats
+EXPLAIN ANALYZE SELECT * FROM User WHERE email = 'user@example.com';
+
+-- Query 2: Bookings by user with status filter - actual performance
+EXPLAIN ANALYZE SELECT * FROM Booking WHERE user_id = 123 AND status = 'confirmed';
+
+-- Query 3: Property search by location and price range - execution analysis
+EXPLAIN ANALYZE SELECT * FROM Property WHERE location = 'New York' AND pricepernight BETWEEN 100 AND 300;
+
+-- Query 4: Bookings in date range - actual timing
+EXPLAIN ANALYZE SELECT * FROM Booking WHERE start_date >= '2024-01-01' AND end_date <= '2024-12-31';
+
+-- Query 5: Property availability check - real execution stats
+EXPLAIN ANALYZE SELECT COUNT(*) FROM Booking 
+WHERE property_id = 456 
+AND start_date <= '2024-06-15' 
+AND end_date >= '2024-06-10';
+
+-- Query 6: Recent reviews for property - actual performance
+EXPLAIN ANALYZE SELECT * FROM Review 
+WHERE property_id = 789 
+ORDER BY created_at DESC 
+LIMIT 10;
+
+-- Query 7: High-rated properties aggregation - execution analysis
+EXPLAIN ANALYZE SELECT p.property_id, p.name, AVG(r.rating) as avg_rating
+FROM Property p
+JOIN Review r ON p.property_id = r.property_id
+WHERE r.rating >= 4.0
+GROUP BY p.property_id, p.name
+HAVING AVG(r.rating) > 4.5;
+
+-- Query 8: Complex JOIN query - comprehensive execution analysis
+EXPLAIN ANALYZE SELECT 
+    u.first_name, u.last_name,
+    p.name as property_name,
+    b.start_date, b.end_date,
+    b.total_price
+FROM User u
+JOIN Booking b ON u.user_id = b.user_id
+JOIN Property p ON b.property_id = p.property_id
+WHERE u.role = 'guest'
+AND b.status = 'completed'
+AND b.start_date >= '2024-01-01'
+ORDER BY b.created_at DESC;
+
+-- =====================================================
+-- 6.3 PERFORMANCE COMPARISON QUERIES
+-- =====================================================
+
+-- Query to measure performance improvement for booking searches
+EXPLAIN ANALYZE SELECT 
+    b.booking_id,
+    b.total_price,
+    u.email,
+    p.name as property_name
+FROM Booking b
+JOIN User u ON b.user_id = u.user_id
+JOIN Property p ON b.property_id = p.property_id
+WHERE b.status IN ('confirmed', 'completed')
+AND b.start_date BETWEEN '2024-01-01' AND '2024-12-31'
+AND p.location LIKE '%New York%'
+ORDER BY b.total_price DESC
+LIMIT 50;
+
+-- Query to test composite index effectiveness
+EXPLAIN ANALYZE SELECT 
+    property_id,
+    COUNT(*) as booking_count,
+    AVG(total_price) as avg_price
+FROM Booking 
+WHERE status = 'completed'
+AND start_date >= '2024-01-01'
+GROUP BY property_id
+HAVING booking_count > 5
+ORDER BY avg_price DESC;
+
+-- Query to test review aggregation performance
+EXPLAIN ANALYZE SELECT 
+    p.property_id,
+    p.name,
+    p.location,
+    COUNT(r.review_id) as review_count,
+    AVG(r.rating) as avg_rating,
+    MAX(r.created_at) as latest_review
+FROM Property p
+LEFT JOIN Review r ON p.property_id = r.property_id
+WHERE p.pricepernight BETWEEN 50 AND 200
+GROUP BY p.property_id, p.name, p.location
+HAVING review_count >= 3
+ORDER BY avg_rating DESC, review_count DESC
+LIMIT 20;
+
+-- =====================================================
 -- 7. INDEX MAINTENANCE COMMANDS
 -- =====================================================
 
@@ -282,23 +383,51 @@ ANALYZE TABLE Payment;
 -- =====================================================
 
 /*
-PERFORMANCE TESTING SCRIPT:
+COMPREHENSIVE PERFORMANCE TESTING PROCEDURE:
 
-1. Run the performance testing queries above with EXPLAIN before creating indexes
-2. Note the execution plans, rows examined, and query cost
-3. Create the indexes using the commands above
-4. Run the same queries again with EXPLAIN
-5. Compare the results to measure performance improvement
+PHASE 1: BASELINE MEASUREMENT (Before Index Creation)
+1. Drop all non-primary indexes
+2. Run EXPLAIN ANALYZE on all test queries
+3. Record execution times, rows examined, and query costs
+4. Save results for comparison
 
-Key metrics to compare:
-- Type: Should change from "ALL" (full table scan) to "ref" or "range"
-- Rows: Number of rows examined should decrease significantly
-- Key: Should show the index being used
-- Extra: Should show "Using index" when possible
+PHASE 2: INDEX IMPLEMENTATION
+1. Create all indexes as defined in sections 3-4
+2. Run ANALYZE TABLE on all tables
+3. Allow MySQL to update statistics
 
-Example comparison:
-Before: type=ALL, rows=10000, key=NULL
-After:  type=ref, rows=1, key=idx_user_email
+PHASE 3: POST-INDEX MEASUREMENT
+1. Run identical EXPLAIN ANALYZE queries
+2. Record new execution times and statistics
+3. Compare with baseline results
+
+KEY METRICS TO COMPARE:
+- Execution Time: Actual time taken (from EXPLAIN ANALYZE)
+- Rows Examined: Should decrease significantly
+- Index Usage: Type should change from "ALL" to "ref"/"range"
+- Cost: Query optimizer cost should decrease
+- Join Algorithm: Should use index-based joins
+
+EXPLAIN vs EXPLAIN ANALYZE DIFFERENCES:
+- EXPLAIN: Shows the query execution plan (predicted)
+- EXPLAIN ANALYZE: Shows actual execution statistics (real performance)
+- EXPLAIN ANALYZE provides:
+  * Actual execution time
+  * Actual rows processed
+  * Number of loops executed
+  * Time spent in each operation
+  * Memory usage (in some versions)
+
+Example EXPLAIN ANALYZE output interpretation:
+-> Index lookup on User using idx_user_email (email='user@example.com') 
+   (cost=0.35 rows=1) (actual time=0.123..0.125 rows=1 loops=1)
+
+This shows:
+- Used index: idx_user_email
+- Estimated cost: 0.35, rows: 1
+- Actual time: 0.123-0.125ms
+- Actual rows: 1
+- Executed once (loops=1)
 */
 
 -- =====================================================
@@ -332,6 +461,59 @@ ORDER BY TABLE_NAME, INDEX_NAME;
 -- AND COUNT_UPDATE = 0
 -- AND COUNT_DELETE = 0;
 
+-- Real-time query performance monitoring
+-- SELECT 
+--     SQL_TEXT,
+--     EXEC_COUNT,
+--     TOTAL_LATENCY,
+--     AVG_LATENCY,
+--     ROWS_EXAMINED_AVG,
+--     ROWS_SENT_AVG
+-- FROM sys.x$statement_analysis
+-- WHERE DB = 'airbnb_db'
+-- ORDER BY TOTAL_LATENCY DESC
+-- LIMIT 10;
+
 -- =====================================================
--- END OF INDEX IMPLEMENTATION
+-- 10. INDEX PERFORMANCE BENCHMARKING
+-- =====================================================
+
+-- Benchmark script for systematic performance testing
+/*
+BENCHMARKING PROCEDURE:
+
+1. Create a test script that runs each query multiple times
+2. Measure average execution time over multiple runs
+3. Record results in a benchmarking table:
+
+CREATE TABLE index_benchmark (
+    test_id INT AUTO_INCREMENT PRIMARY KEY,
+    query_name VARCHAR(100),
+    index_status ENUM('before', 'after'),
+    execution_time_ms DECIMAL(10,3),
+    rows_examined INT,
+    test_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+4. Use this template for each test query:
+INSERT INTO index_benchmark (query_name, index_status, execution_time_ms, rows_examined)
+VALUES ('user_email_lookup', 'before', <time>, <rows>);
+
+5. Generate performance reports:
+SELECT 
+    query_name,
+    AVG(CASE WHEN index_status = 'before' THEN execution_time_ms END) as before_avg_ms,
+    AVG(CASE WHEN index_status = 'after' THEN execution_time_ms END) as after_avg_ms,
+    (AVG(CASE WHEN index_status = 'before' THEN execution_time_ms END) - 
+     AVG(CASE WHEN index_status = 'after' THEN execution_time_ms END)) as improvement_ms,
+    ROUND(((AVG(CASE WHEN index_status = 'before' THEN execution_time_ms END) - 
+            AVG(CASE WHEN index_status = 'after' THEN execution_time_ms END)) / 
+           AVG(CASE WHEN index_status = 'before' THEN execution_time_ms END)) * 100, 2) as improvement_percent
+FROM index_benchmark
+GROUP BY query_name
+ORDER BY improvement_percent DESC;
+*/
+
+-- =====================================================
+-- END OF ENHANCED INDEX IMPLEMENTATION
 -- =====================================================
