@@ -49,5 +49,19 @@ I've included advanced examples that demonstrate:
 **Comparative analysis**: Properties vs. location averages
 **Complex aggregations**: User spending vs. platform averages
 
+
+# Task 2:
+
+**Apply Aggregations and Window Functions**
+
+**mandatory**
+**Objective**: Use SQL aggregation and window functions to analyze data.
+
+# Instructions:
+
+Write a query to find the total number of bookings made by each user, using the COUNT function and GROUP BY clause.
+
+Use a window function (ROW_NUMBER, RANK) to rank properties based on the total number of bookings they have received.
+
 # AUTHOR
 - Simanga Mchunu
