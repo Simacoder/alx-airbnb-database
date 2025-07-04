@@ -3,7 +3,7 @@
 -- =====================================================
 
 -- AUTHOR: Simanga Mchunu
--- DATE: 2023-10-01
+
 
 
 -- Query 1: Aggregations - Total Bookings per User using COUNT and GROUP BY

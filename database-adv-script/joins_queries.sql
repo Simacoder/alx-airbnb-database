@@ -3,7 +3,6 @@
 -- =====================================================
 
 -- AUTHOR: Simanga Mchunu
--- DATE: 2023-10-01
 
 -- Query 1: INNER JOIN - Retrieve all bookings with respective users
 -- =====================================================
